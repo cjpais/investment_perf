@@ -1,0 +1,77 @@
+@-webkit-keyframes STAR-MOVE {
+  from {
+    background-position: 100% 100%
+  }
+  to { 
+    background-position: 100% 0%
+  }
+}
+
+body {
+  background-color: #7fe;
+  background-color: #7ef;
+  background-color: #f7e;
+  background-color: #fe7;
+  background-color: #e7f;
+  background-color: #ef7;
+  margin: 0;
+}
+
+#tsparticles {
+  position: absolute;
+  width: 99%;
+  height: 99%;
+  z-index: 100;
+}
+
+.container {
+  width: 960px;
+  margin: 0 auto;
+  background-color: #ef7;
+}
+
+.data-container {
+  border-style: solid;
+  border-radius: 1.13em;
+  /*border-color: #7fe;*/
+  border-color: #7ef;
+  margin: 3em;
+  padding: 2em;
+  z-index: 1000;
+}
+
+h1 {
+  font-size: 4em;
+  text-align: center;
+  color: #e7f;
+  z-index: 1000;
+  margin-block-start: 0;
+  padding-top: 2em;
+}
+
+h3 {
+  text-align: center;
+  color: #e7f;
+  z-index: 1000;
+  margin-block-start: 0;
+}
+
+#background {
+	background: url('https://api.iconify.design/twemoji:burrito.svg') repeat 10% 10%; 
+  background-repeat: space;
+  background-size: 5%;
+  position: absolute;
+	top: 0; left: 0; right: 0; bottom: 0;
+	z-index: 100;
+	
+	-webkit-animation-name: STAR-MOVE;
+	-webkit-animation-duration: 200s;
+	-webkit-animation-timing-function: linear;
+	-webkit-animation-iteration-count: infinite;
+}
+
+p {
+text-align: center;
+font-size: 30px;
+margin: 20px 0 20px 0;
+}

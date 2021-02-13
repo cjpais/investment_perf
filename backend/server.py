@@ -7,13 +7,16 @@ from datetime import datetime
 
 import pandas
 import yfinance as yf
-from flask import Flask, request
+from flask import Flask, request, send_from_directory
 app = Flask(__name__)
 
 
 CJ_INVEST_START_DATE = "2017-07-14"
 MONEY_PATH = "{}/money".format(os.getenv("PERSONAL_HOME"))
-DATA_PATH = MONEY_PATH + "/investment_perf/backend/ticker_data"
+CODE_PATH = MONEY_PATH + "/investment_perf"
+FRONT_END_PATH = CODE_PATH + "/frontend"
+BACK_END_PATH = CODE_PATH + "/backend"
+DATA_PATH = BACK_END_PATH + "/ticker_data"
 
 market_history = pandas.DataFrame()
 ticker_db = {}
@@ -169,17 +172,37 @@ def calc_pgl_and_index(value, history, base_index):
 build_market_hist()
 cji = CJIndex()
 
-@app.route('/ticker/<symbol>', methods=['GET'])
-def ticker(symbol):
-    global ticker_db
-    if symbol.upper() in ticker_db:
-        ticker = ticker_db[symbol.upper()]
-        return json.dumps(ticker.get_ticker_hist(), default=lambda o: o.__dict__)
-    else:
-        # go find the symbol and add it to the db then return it
-        pass
+@app.route('/<path:path>')
+def serve_static(path):
+    if path == "":
+        path = "index.html"
+    return send_from_directory(FRONT_END_PATH, path)
 
-    return "not in db"
+"""
+@app.route('/css/<path:path>')
+def static_css(path):
+    return send_from_directory(FRONT_END_PATH + "/css", path)
+
+@app.route('/js/<path:path>')
+def static_js(path):
+    return send_from_directory(FRONT_END_PATH + "/js", path)
+"""
+
+@app.route('/ticker/<symbols_csv>', methods=['GET'])
+def ticker(symbols_csv):
+    global ticker_db
+    symbols = symbols_csv.split(",")
+
+    ticker_data = {}
+    for symbol in symbols:
+        if symbol.upper() in ticker_db:
+            ticker = ticker_db[symbol.upper()]
+            ticker_data[symbol.upper()] = ticker.get_ticker_hist()
+        else:
+            # go find the symbol and add it to the db then return it
+            pass
+
+    return json.dumps(ticker_data, default=lambda o: o.__dict__)
 
 @app.route('/cji', methods=['GET'])
 def cjindex():

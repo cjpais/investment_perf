@@ -14,13 +14,19 @@
       <h1>CJ's Investments</h1>
       <div class="spacer"></div>
       <div class="data-container">
+        <h3>Amount Invested v Investment Value</h3>
         <div style="display: flex">
-          <h3 style="margin-right: auto">Amount Invested v Investment Value</h3>
-          <button onclick="btn_press(this)">1wk</button>
-          <button>1mo</button>
-          <button>3mo</button>
-          <button>1yr</button>
-          <button>All</button>
+          <div class="button-container">
+            <button onclick="btn_press(this)">1wk</button>
+            <span>|</span>
+            <button>1mo</button>
+            <span>|</span>
+            <button>3mo</button>
+            <span>|</span>
+            <button>1yr</button>
+            <span>|</span>
+            <button>All</button>
+          </div>
         </div>
         <div id="gain-vs-invested"></div>
       </div>

@@ -12,34 +12,35 @@
     <div class="container">
       <div class="spacer"></div>
       <h1>CJ's Investments</h1>
+      <h2 id="value">Worth: $</h2>
       <div class="spacer"></div>
       <div class="data-container">
+        <h3>Current Asset Breakdown</h3>
+        <div id="asset-raw-breakdown"></div>
+        <div id="asset-value-breakdown"></div>
+      </div>
+      <div class="data-container">
+        <h3>Assets Over Time</h3>
+        <div id="assets-over-time"></div>
+      </div>
+      <div class="data-container">
         <h3>Amount Invested v Investment Value</h3>
-        <div style="display: flex">
-          <div class="button-container">
-            <button onclick="btn_press(this)">1wk</button>
-            <span>|</span>
-            <button>1mo</button>
-            <span>|</span>
-            <button>3mo</button>
-            <span>|</span>
-            <button>1yr</button>
-            <span>|</span>
-            <button>All</button>
-          </div>
-        </div>
         <div id="gain-vs-invested"></div>
       </div>
       <div class="data-container">
         <h3>My Investments v Market</h3>
         <div id="cj-vs-market"></div>
       </div>
+      <div class="data-container">
+        <h3>Compare Stocks</h3>
+        <div id="cmp-stocks"></div>
+      </div>
     </div>
   </body>
 
   <!--<script src="emoji.js"></script>-->
   <script src="https://cdn.jsdelivr.net/npm/tsparticles@1.15.1/dist/tsparticles.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <script src="https://code.highcharts.com/stock/highstock.js"></script>
   <!--<script src="js/p.js"></script>-->
   <script src="js/chart.js"></script>
 </html>

@@ -25,6 +25,8 @@ class Ticker():
 
     def __init__(self, symbol):
         self.symbol = symbol
+        print("getting short name for", symbol)
+        #self.name = yf.Ticker(symbol).info['shortName']
         self.history = market_history[symbol]
 
         pass
@@ -61,13 +63,28 @@ class Ticker():
     def toJson(self):
         return json.dumps(self, default=lambda o: o.__dict__)
 
+class Holding():
+
+    def __init__(self, symbol, qty, invested, value):
+        self.symbol = symbol
+        self.quantity = qty
+        self.amt_invested = invested
+        self.value = value
+
 class CJIndex():
     
     def __init__(self):
         self.transactions = pandas.read_csv(MONEY_PATH  + "/investment_transactions.csv")
+        self.hist, self.holdings = self._get_hist()
         pass
 
-    def get_hist(self, start_date=CJ_INVEST_START_DATE, end_date=datetime.now(), base_index = 100):
+    def get_hist(self):
+        return self.hist
+
+    def get_holdings(self):
+        return self.holdings
+
+    def _get_hist(self, start_date=CJ_INVEST_START_DATE, end_date=datetime.now(), base_index = 100):
         global market_history
         dates = pandas.date_range(start_date, end_date)
         history = []
@@ -75,14 +92,18 @@ class CJIndex():
         amount_invested = 0
         holdings = {}
 
+        buy_eqiv = ["buy", "reinvest shares", "espp", "restricted stock grant"]
+
         for day in dates:
             # Only add days where the market is open
+            """
             try:
                 value = market_history["^DJI"].loc[day, "Adj Close"]
                 if math.isnan(value):
                     continue
             except:
                 continue
+                """
 
             # Get the dataframe for today
             day_s = day.strftime("%Y-%m-%d")
@@ -95,32 +116,56 @@ class CJIndex():
                     quantity = float(v["Quantity"])
                     cost = -float(v["Amount"].replace("$", "").replace(",", ""))
 
-                    if action == "buy" or action == "reinvest shares":
+                    if action in buy_eqiv:
                         if symbol in holdings:
-                            holdings[symbol] += quantity
+                            holdings[symbol].quantity += quantity
+                            holdings[symbol].amt_invested += cost
                         else:
-                            holdings[symbol] = quantity
+                            h = Holding(symbol, quantity, cost, 0)
+                            holdings[symbol] = h
                         amount_invested += cost
                     elif action == "sell":
                         if symbol not in holdings:
                             raise Exception("TRYING TO SELL NONEXISTENT HOLDING")
 
-                        holdings[symbol] -= quantity
-                        amount_invested += cost
+                        # TODO this is wrong, need to have better date in our transactions.
+                        # Which shares were sold, and what price they were bought at
+                        # instead of averaging over the whole thing
+                        pps = holdings[symbol].amt_invested / holdings[symbol].quantity
+                        amt_sold = pps * quantity
+
+                        holdings[symbol].quantity -= quantity
+                        holdings[symbol].amt_invested -= amt_sold
+                        amount_invested -= amt_sold
 
             # get todays value based on our holdings
             value = 0
-            for symbol, quantity in holdings.items():
-                sym_val = market_history[symbol].loc[day, "Adj Close"]
-                value += sym_val * quantity
+            bad_val = False
+            for key, holding in holdings.items():
+                try:
+                    sym_val = market_history[holding.symbol].loc[day, "Adj Close"]
+                    if math.isnan(sym_val):
+                        bad_val = True
+                        break
+
+                    hold_val = sym_val * holding.quantity
+
+                    holdings[holding.symbol].value = hold_val
+                    value += hold_val 
+                except:
+                    bad_val = True
+                    break
+
+            if bad_val:
+                continue
 
             perc_gain_loss, _= calc_pgl_and_index(value, history, base_index)
             index = ((value - amount_invested) / amount_invested) * 100 + 100
 
             td = TickerDay(day_s, value, perc_gain_loss, index, amount_invested)
             history.append(td)
-
-        return history
+        
+        return history, holdings
 
 
 def build_market_hist():
@@ -208,5 +253,10 @@ def ticker(symbols_csv):
 def cjindex():
     global cji
     return json.dumps(cji.get_hist(), default=lambda o: o.__dict__)
+
+@app.route('/cji/holdings', methods=['GET'])
+def cji_holdings():
+    global cji
+    return json.dumps(list(cji.get_holdings().values()), default=lambda o: o.__dict__)
 
 app.run(host='0.0.0.0')

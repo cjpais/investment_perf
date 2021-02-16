@@ -46,7 +46,15 @@ h1 {
   color: #e7f;
   z-index: 1000;
   margin-block-start: 0;
-  padding-top: 2em;
+  padding-top: 1em;
+}
+
+h2{
+  font-size: 2em;
+  text-align: center;
+  color: #e7f;
+  z-index: 1000;
+  margin-block-start: 0;
 }
 
 h3 {

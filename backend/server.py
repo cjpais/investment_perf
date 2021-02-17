@@ -63,6 +63,12 @@ class Ticker():
     def toJson(self):
         return json.dumps(self, default=lambda o: o.__dict__)
 
+class HoldingDay():
+
+    def __init__(self, holdings, day):
+        self.holdings = holdings
+        self.day = day
+
 class Holding():
 
     def __init__(self, symbol, qty, invested, value):
@@ -75,14 +81,17 @@ class CJIndex():
     
     def __init__(self):
         self.transactions = pandas.read_csv(MONEY_PATH  + "/investment_transactions.csv")
-        self.hist, self.holdings = self._get_hist()
+        self.hist, self.holding_history = self._get_hist()
         pass
 
     def get_hist(self):
         return self.hist
 
     def get_holdings(self):
-        return self.holdings
+        return self.holding_history[-1].holdings
+
+    def get_holding_history(self):
+        return self.holding_history
 
     def _get_hist(self, start_date=CJ_INVEST_START_DATE, end_date=datetime.now(), base_index = 100):
         global market_history
@@ -91,6 +100,8 @@ class CJIndex():
 
         amount_invested = 0
         holdings = {}
+
+        holding_history = []
 
         buy_eqiv = ["buy", "reinvest shares", "espp", "restricted stock grant"]
 
@@ -163,9 +174,21 @@ class CJIndex():
             index = ((value - amount_invested) / amount_invested) * 100 + 100
 
             td = TickerDay(day_s, value, perc_gain_loss, index, amount_invested)
+            holdings_copy = []
+
+            for h in holdings.values():
+                holdings_copy.append(Holding(h.symbol, h.quantity, h.amt_invested, h.value))
+
+            hd = HoldingDay(holdings_copy, day_s)
+
+            if len(history) == 0:
+                print(list(holdings.values())[0].__dict__)
+                print(hd.__dict__)
+
             history.append(td)
+            holding_history.append(hd)
         
-        return history, holdings
+        return history, holding_history
 
 
 def build_market_hist():
@@ -257,6 +280,11 @@ def cjindex():
 @app.route('/cji/holdings', methods=['GET'])
 def cji_holdings():
     global cji
-    return json.dumps(list(cji.get_holdings().values()), default=lambda o: o.__dict__)
+    return json.dumps(cji.get_holdings(), default=lambda o: o.__dict__)
+
+@app.route('/cji/holdings/history', methods=['GET'])
+def cji_holding_history():
+    global cji
+    return json.dumps(list(cji.get_holding_history()), default=lambda o: o.__dict__)
 
 app.run(host='0.0.0.0')

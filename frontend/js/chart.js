@@ -2,6 +2,120 @@ var resolved = [false, false]
 var tickers_data
 var cji_data
 var cji_holdings_data
+var cji_holding_history_data
+
+function createHoldingHistoryChart(value = false) {
+  let data = cji_holding_history_data
+
+  Highcharts.chart('assets-over-time', {
+    chart: {
+      backgroundColor: "#ef7",
+      type: 'area'
+    },
+    title: { text: undefined },
+    xAxis: {
+      categories: data.map(day => new Date(day.day).getTime())
+    },
+    yAxis: {
+      labels: {
+        format: '{value}%'
+      }
+    },
+    tooltip: {
+      pointFormat: '<span style="color:{series.color}">{series.name}</span>: <b>{point.percentage:.2f}%</b> (${point.y:,.2f})<br/>',
+      split: false
+    },
+    plotOptions: {
+      area: {
+        stacking: "percent",
+      }
+    },
+    credits: { enabled: false },
+    series: getHoldingHistorySeries(data, value)
+  })
+}
+
+function getHoldingHistorySeries(data, value) {
+  series = []
+  if (value) {
+    // TODO unimplemented
+  } else {
+    t0 = performance.now()
+    stockList = []
+
+    const createZeroArray = (numZero) => {
+      var arr = []
+      for (var i = 0; i < numZero; i++) {
+        arr[i] = 0
+      }
+      return arr
+    }
+
+    // naively figure out all the stocks we need to chart
+    // TODO FIX: performance
+    data.map(day => {
+      day.holdings.map(holding => {
+        if (!stockList.includes(holding.symbol)) {
+          stockList.push(holding.symbol)
+          series.push({
+            name: holding.symbol,
+            data: createZeroArray(data.length)
+          })
+        }
+      })
+    })
+
+    // generate the series from the data
+    // TODO FIX: performance, use a map or something...
+    for (var i = 0; i < data.length; i++) {
+      holdings = data[i].holdings
+      holdings.map(holding => {
+        let seriesIndex = series.findIndex((item) => {
+          return item.name === holding.symbol
+        })
+
+        series[seriesIndex].data[i] = holding.amt_invested
+      })
+    }
+
+
+    console.log("took:", performance.now() - t0)
+
+  }
+
+  return series
+}
+
+function createTreemap() {
+  Highcharts.chart('asset-raw-breakdown-treemap', {
+    chart: {
+      backgroundColor: "#ef7"
+    },
+    colorAxis: {
+        minColor: '#FFFFFF',
+        maxColor: Highcharts.getOptions().colors[0]
+    },
+    plotOptions: {
+      treemap: {
+        dataLabels: {
+          formatter: function() {
+            return "Ticker: " + this.point.name
+          } 
+        }
+      }
+    },
+    series: [{
+        type: 'treemap',
+        layoutAlgorithm: 'squarified',
+        data: getHoldingData('asset-raw-breakdown'),
+    }],
+    credits: { enabled: false },
+    title: {
+        text: undefined
+    }
+});
+         
+}
 
 function createPieChart(id) {
 
@@ -156,7 +270,6 @@ function buildSeries(id) {
   return []
 }
 
-
 function can_build_chart() {
   return resolved[0] && resolved[1]
 }
@@ -187,16 +300,12 @@ function get_gvi_series() {
   return series
 }
 
-function build_gain_vs_invested_chart() {
-  //chart1.updateSeries(get_gvi_series(cji_data))
-}
-
 function build_high_ticker_data(data) {
   var index_data = []
   for (const [k, v] of Object.entries(data)) {
     console.log("KEY AND VAL", k, v)
     index_data.push({
-      data: build_high_data(v, "index"),
+      data: build_high_data(v, "value"),
       name: k
     })
   }
@@ -229,7 +338,7 @@ function build_high_data(data, type = "value") {
 function build_chart() {
   if (can_build_chart()) {
     //chart.updateSeries(build_series(tickers_data, cji_data))
-    createChart("cj-vs-market", false)
+    createChart("cj-vs-market", true)
   }
 }
 
@@ -239,8 +348,9 @@ function build_chart() {
 const tickers_req = fetch("/ticker/^DJI,^IXIC,^GSPC")
 const cji_req = fetch("/cji")
 const cji_holdings = fetch("/cji/holdings")
+const cji_holding_history = fetch("/cji/holdings/history")
 
-Promise.all([tickers_req, cji_req, cji_holdings]).then(data => {
+Promise.all([tickers_req, cji_req, cji_holdings, cji_holding_history]).then(data => {
   data[0].json().then(d => {
     tickers_data = d
     resolved[0] = true
@@ -256,10 +366,15 @@ Promise.all([tickers_req, cji_req, cji_holdings]).then(data => {
     cji_holdings_data = d
     createPieChart("asset-raw-breakdown")
     createPieChart("asset-value-breakdown")
+    createTreemap()
 
     totalVal = 0
     cji_holdings_data.map(holding => totalVal += holding.value)
 
     document.getElementById("value").textContent = `Value: $${totalVal.toFixed(2)}`
+  })
+  data[3].json().then(d => {
+    cji_holding_history_data = d
+    createHoldingHistoryChart()
   })
 })

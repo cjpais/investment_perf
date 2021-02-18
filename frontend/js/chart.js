@@ -3,6 +3,7 @@ var tickers_data
 var cji_data
 var cji_holdings_data
 var cji_holding_history_data
+var cji_transaction_data
 
 function createHoldingHistoryChart(value = false) {
   let data = cji_holding_history_data
@@ -342,6 +343,33 @@ function build_chart() {
   }
 }
 
+function createTable(id, header, rows) {
+  var tableRoot = document.getElementById(id)
+
+  var thead = tableRoot.createTHead()
+  var headerRow = thead.insertRow(0)
+
+  for (var i = 0; i < header.length; i++) {
+    var th = document.createElement('th')
+    th.innerHTML = header[i]
+    headerRow.appendChild(th)
+  }
+
+  var tbody = document.createElement("tbody")
+  tableRoot.appendChild(tbody)
+
+  for (var rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    var row = tbody.insertRow(rowIndex)
+
+    for (var cellIndex = 0; cellIndex < rows[rowIndex].length; cellIndex++) {
+      var cell = row.insertCell(cellIndex)
+      cell.innerHTML = rows[rowIndex][cellIndex]
+    }
+  }
+
+  new Tablesort(tableRoot, {descending: true})
+}
+
 // TODO make this a lot more generic, is really just requests
 // and a boolean to wait. Doesn't need to be in promise.all
 // necessarily but could be a nice wrapper.
@@ -349,8 +377,9 @@ const tickers_req = fetch("/ticker/^DJI,^IXIC,^GSPC")
 const cji_req = fetch("/cji")
 const cji_holdings = fetch("/cji/holdings")
 const cji_holding_history = fetch("/cji/holdings/history")
+const cji_transactions = fetch("/cji/transactions")
 
-Promise.all([tickers_req, cji_req, cji_holdings, cji_holding_history]).then(data => {
+Promise.all([tickers_req, cji_req, cji_holdings, cji_holding_history, cji_transactions]).then(data => {
   data[0].json().then(d => {
     tickers_data = d
     resolved[0] = true
@@ -368,13 +397,39 @@ Promise.all([tickers_req, cji_req, cji_holdings, cji_holding_history]).then(data
     createPieChart("asset-value-breakdown")
     createTreemap()
 
+    totalInvested = 0
     totalVal = 0
-    cji_holdings_data.map(holding => totalVal += holding.value)
+    cji_holdings_data.map(holding => {
+      totalVal += holding.value
+      totalInvested += holding.amt_invested
+    })
+
+    // TODO clean this up so we dont do this calculation in multiple place
+    // i am extremely tired right now and dont want to refactor and just
+    // want this to work
+    createTable(
+      "asset-table", 
+      ["Symbol", "$ Amount Invested", "Qty", "$ Value", "Percent by $ Invested", "Percent by $ Value", "Gain Loss"],
+      d.map(asset => {
+        return [
+          asset.symbol, 
+          asset.amt_invested.toFixed(2), 
+          asset.quantity.toFixed(2), 
+          asset.value.toFixed(2),
+          `${((asset.amt_invested / totalInvested) * 100).toFixed(2)}%`,
+          `${((asset.value / totalVal) * 100).toFixed(2)}%`
+        ]
+      })
+    )
+
 
     document.getElementById("value").textContent = `Value: $${totalVal.toFixed(2)}`
   })
   data[3].json().then(d => {
     cji_holding_history_data = d
     createHoldingHistoryChart()
+  })
+  data[4].json().then(d => {
+    cji_transaction_data = d
   })
 })

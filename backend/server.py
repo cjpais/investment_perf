@@ -3,7 +3,8 @@ import csv
 import json
 import math
 
-from datetime import datetime
+from datetime import date, datetime
+from threading import Lock
 
 import pandas
 import yfinance as yf
@@ -28,10 +29,16 @@ class Ticker():
         print("getting short name for", symbol)
         #self.name = yf.Ticker(symbol).info['shortName']
         self.history = market_history[symbol]
+        self.last_updated = datetime.min.date()
+        self.mutex = Lock()
+        self.ticker_days = []
+
+        # update ticker_days
+        self.get_ticker_hist()
 
         pass
-        
-    def get_ticker_hist(self, start_date=CJ_INVEST_START_DATE, end_date=datetime.now(), base_index = 100):
+
+    def _refresh_hist(self, start_date=CJ_INVEST_START_DATE, end_date=date.today(), base_index = 100):
         global market_history
         dates = pandas.date_range(start_date, end_date)
         history = []
@@ -55,7 +62,20 @@ class Ticker():
             td = TickerDay(day_s, value, percent_gain_loss, index)
             history.append(td)
 
-        return history
+        self.ticker_days = history
+        self.last_updated = date.today()
+        
+    def get_ticker_hist(self, start_date=CJ_INVEST_START_DATE, end_date=date.today(), base_index = 100):
+        today = date.today()
+
+        # if the last update was yesterday then refresh, else return
+        self.mutex.acquire()
+        if today > self.last_updated:
+            print("updating {}... last updated {}, today {}".format(self.symbol, self.last_updated, today))
+            self._refresh_hist(start_date, end_date, base_index)
+        self.mutex.release()
+
+        return self.ticker_days
 
     def to_csv(self):
         self.history.to_csv(DATA_PATH + "/{}.csv".format(self.symbol))
@@ -80,20 +100,46 @@ class Holding():
 class CJIndex():
     
     def __init__(self):
-        self.transactions = pandas.read_csv(MONEY_PATH  + "/investment_transactions.csv")
-        self.hist, self.holding_history = self._get_hist()
+        self.last_updated = datetime.min.date()
+        self.transactions = None
+        self.hist = []
+        self.holding_history = []
+        self.mutex = Lock()
+
+        self._update()
         pass
 
+    def _update(self):
+        today = date.today()
+
+        # if the last update was yesterday then refresh, else return
+        self.mutex.acquire()
+        if today > self.last_updated:
+            print("updating cj index last updated {}, today {}".format(self.last_updated, today))
+            self._update_transactions()
+            self._update_hist()
+        self.mutex.release()
+
+    def get_transactions(self):
+        self._update()
+        return self.transactions
+
     def get_hist(self):
+        self._update()
         return self.hist
 
     def get_holdings(self):
+        self._update()
         return self.holding_history[-1].holdings
 
     def get_holding_history(self):
+        self._update()
         return self.holding_history
 
-    def _get_hist(self, start_date=CJ_INVEST_START_DATE, end_date=datetime.now(), base_index = 100):
+    def _update_transactions(self):
+        self.transactions = pandas.read_csv(MONEY_PATH  + "/investment_transactions.csv")
+
+    def _update_hist(self, start_date=CJ_INVEST_START_DATE, end_date=date.today(), base_index = 100):
         global market_history
         dates = pandas.date_range(start_date, end_date)
         history = []
@@ -106,16 +152,6 @@ class CJIndex():
         buy_eqiv = ["buy", "reinvest shares", "espp", "restricted stock grant"]
 
         for day in dates:
-            # Only add days where the market is open
-            """
-            try:
-                value = market_history["^DJI"].loc[day, "Adj Close"]
-                if math.isnan(value):
-                    continue
-            except:
-                continue
-                """
-
             # Get the dataframe for today
             day_s = day.strftime("%Y-%m-%d")
             tdf = self.transactions[self.transactions["Date"] == day_s]
@@ -156,6 +192,8 @@ class CJIndex():
                 try:
                     sym_val = market_history[holding.symbol].loc[day, "Adj Close"]
                     if math.isnan(sym_val):
+                        if (day_s == "2021-02-16"):
+                            print("bad data for", holding.symbol)
                         bad_val = True
                         break
 
@@ -168,6 +206,8 @@ class CJIndex():
                     break
 
             if bad_val:
+                if (day_s == "2021-02-16"):
+                    print("woooo bad data")
                 continue
 
             perc_gain_loss, _= calc_pgl_and_index(value, history, base_index)
@@ -188,6 +228,9 @@ class CJIndex():
             history.append(td)
             holding_history.append(hd)
         
+        self.last_updated = date.today()
+        self.hist = history
+        self.holding_history = holding_history
         return history, holding_history
 
 
@@ -286,5 +329,10 @@ def cji_holdings():
 def cji_holding_history():
     global cji
     return json.dumps(list(cji.get_holding_history()), default=lambda o: o.__dict__)
+
+@app.route('/cji/transactions', methods=['GET'])
+def cji_transactions():
+    global cji
+    return json.dumps(cji.get_transactions().values.tolist(), default=lambda o: o.__dict__)
 
 app.run(host='0.0.0.0')

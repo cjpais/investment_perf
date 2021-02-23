@@ -11,13 +11,19 @@ import yfinance as yf
 from flask import Flask, request, send_from_directory
 app = Flask(__name__)
 
-
 CJ_INVEST_START_DATE = "2017-07-14"
 MONEY_PATH = "{}/money".format(os.getenv("PERSONAL_HOME"))
+
+print("PERSONAL HOME DIR: ", os.getenv("PERSONAL_HOME"))
+
 CODE_PATH = MONEY_PATH + "/investment_perf"
 FRONT_END_PATH = CODE_PATH + "/frontend"
 BACK_END_PATH = CODE_PATH + "/backend"
 DATA_PATH = BACK_END_PATH + "/ticker_data"
+API_PATH = BACK_END_PATH + "/api"
+
+os.makedirs(API_PATH + "/symbols", exist_ok = True)
+os.makedirs(API_PATH + "/cj", exist_ok = True)
 
 market_history = pandas.DataFrame()
 ticker_db = {}
@@ -70,15 +76,24 @@ class Ticker():
 
         # if the last update was yesterday then refresh, else return
         self.mutex.acquire()
+
         if today > self.last_updated:
             print("updating {}... last updated {}, today {}".format(self.symbol, self.last_updated, today))
             self._refresh_hist(start_date, end_date, base_index)
+
         self.mutex.release()
 
         return self.ticker_days
 
     def to_csv(self):
         self.history.to_csv(DATA_PATH + "/{}.csv".format(self.symbol))
+
+    def write_json(self):
+        fl = API_PATH + "/symbols/{}.json".format(self.symbol)
+
+        with open(fl, "w") as tf:
+            data = self.ticker_days
+            json.dump(data, tf, default=lambda o: o.__dict__)
 
     def toJson(self):
         return json.dumps(self, default=lambda o: o.__dict__)
@@ -109,6 +124,28 @@ class CJIndex():
         self._update()
         pass
 
+    def export(self):
+
+        # write transaction history in JSON
+        with open(API_PATH + "/cj/trans_history.json", "w") as thist:
+            data = self.get_transactions().values.tolist()
+            json.dump(data, thist, default=lambda o: o.__dict__)
+
+        # write latest holdings in JSON
+        with open(API_PATH + "/cj/holdings.json", "w") as h:
+            data = list(cji.get_holdings())
+            json.dump(data, h, default=lambda o: o.__dict__)
+
+        # write holding history in JSON
+        with open(API_PATH + "/cj/holding_history.json", "w") as hhist:
+            data = list(cji.get_holding_history())
+            json.dump(data, hhist, default=lambda o: o.__dict__)
+
+        # write index history in JSON
+        with open(API_PATH + "/cj/index_history.json", "w") as ihist:
+            data = cji.get_hist()
+            json.dump(data, ihist, default=lambda o: o.__dict__)
+
     def _update(self):
         today = date.today()
 
@@ -118,6 +155,7 @@ class CJIndex():
             print("updating cj index last updated {}, today {}".format(self.last_updated, today))
             self._update_transactions()
             self._update_hist()
+
         self.mutex.release()
 
     def get_transactions(self):
@@ -251,7 +289,8 @@ def build_market_hist():
     # write them out to files (why not?!)
     for ticker in tickers:
         t = Ticker(ticker)
-        t.to_csv()
+        #t.to_csv()
+        t.write_json()
         ticker_db[ticker] = t
 
     return market_history
@@ -279,9 +318,6 @@ def calc_pgl_and_index(value, history, base_index):
         index = yesterday.index + (yesterday.index * pgl_raw)
 
     return perc_gain_loss, index
-
-build_market_hist()
-cji = CJIndex()
 
 @app.route('/<path:path>')
 def serve_static(path):
@@ -335,4 +371,20 @@ def cji_transactions():
     global cji
     return json.dumps(cji.get_transactions().values.tolist(), default=lambda o: o.__dict__)
 
-app.run(host='0.0.0.0')
+def run():
+    global cji
+    global ticker_db
+
+    build_market_hist()
+    cji = CJIndex()
+
+    cji.export()
+    
+    for ticker in ticker_db:
+        print(ticker)
+
+    #app.run(host='0.0.0.0:2000')
+
+
+if __name__ == "__main__":
+    run()
